@@ -1,0 +1,220 @@
+package main
+
+import (
+	"context"
+	"fmt"
+	"math/rand"
+	"time"
+
+	"github.com/brianvoe/gofakeit/v6"
+
+	"github.com/kokopelli-inc/echo-ddd-demo/internal/domain/entity"
+	"github.com/kokopelli-inc/echo-ddd-demo/internal/infra/db"
+	"github.com/kokopelli-inc/echo-ddd-demo/internal/infra/env"
+	"github.com/kokopelli-inc/echo-ddd-demo/internal/infra/logger"
+)
+
+type Appointment struct {
+	BankID         string
+	BranchID       string
+	StartDateTime  time.Time
+	EndDateTime    time.Time
+	KanjiLastName  string
+	KanjiFirstName string
+	KanaLastName   string
+	KanaFirstName  string
+	CompanyName    string
+	Email          string
+	Tel            string
+	Note           string
+	MenuID         int
+	Birthdate      time.Time
+	CreatedBy      string
+	UpdatedBy      string
+}
+
+// ランダムな姓名、セイメイのペアを作成
+var namePairs = []struct {
+	LastName      string
+	FirstName     string
+	KanaLastName  string
+	KanaFirstName string
+}{
+	{"佐藤", "一郎", "サトウ", "イチロウ"},
+	{"鈴木", "二郎", "スズキ", "ジロウ"},
+	{"高橋", "三郎", "タカハシ", "サブロウ"},
+	{"田中", "四郎", "タナカ", "シロウ"},
+	{"渡辺", "五郎", "ワタナベ", "ゴロウ"},
+	{"伊藤", "六郎", "イトウ", "ロクロウ"},
+	{"中村", "七郎", "ナカムラ", "シチロウ"},
+	{"小林", "八郎", "コバヤシ", "ハチロウ"},
+	{"山本", "九郎", "ヤマモト", "クロウ"},
+	{"加藤", "十郎", "カトウ", "ジュウロウ"},
+	{"吉田", "勝", "ヨシダ", "カツ"},
+	{"山田", "健一", "ヤマダ", "ケンイチ"},
+	{"佐々木", "太一", "ササキ", "タイチ"},
+	{"山口", "光太郎", "ヤマグチ", "コウタロウ"},
+	{"松本", "大和", "マツモト", "ヤマト"},
+	{"井上", "健太", "イノウエ", "ケンタ"},
+	{"木村", "陽一", "キムラ", "ヨウイチ"},
+	{"斉藤", "翔", "サイトウ", "ショウ"},
+	{"林", "大地", "ハヤシ", "ダイチ"},
+	{"清水", "海", "シミズ", "カイ"},
+	{"山崎", "陸", "ヤマザキ", "リク"},
+	{"森", "空", "モリ", "ソラ"},
+	{"阿部", "蒼", "アベ", "アオ"},
+	{"池田", "太陽", "イケダ", "タヨウ"},
+	{"橋本", "瑛太", "ハシモト", "エイタ"},
+	{"石井", "恵介", "イシイ", "ケイスケ"},
+	{"山下", "明", "ヤマシタ", "アキラ"},
+	{"中島", "康平", "ナカジマ", "コウヘイ"},
+	{"石田", "直樹", "イシダ", "ナオキ"},
+	{"前田", "浩二", "マエダ", "コウジ"},
+	{"藤田", "公平", "フジタ", "コウヘイ"},
+	{"大塚", "大志", "オオツカ", "タイシ"},
+	{"小島", "大輝", "コジマ", "ダイキ"},
+	{"桜井", "晴男", "サクライ", "ハルオ"},
+	{"渡部", "智也", "ワタナベ", "トモヤ"},
+	{"久保", "翔太", "クボ", "ショウタ"},
+	{"原田", "直人", "ハラダ", "ナオト"},
+	{"近藤", "秀人", "コンドウ", "ヒデト"},
+	{"金子", "真一", "カネコ", "シンイチ"},
+	{"藤井", "浩史", "フジイ", "ヒロフミ"},
+	{"奥村", "正人", "オクムラ", "マサト"},
+	{"菅原", "裕二", "スガワラ", "ユウジ"},
+	{"岡田", "雅之", "オカダ", "マサユキ"},
+	{"平野", "純", "ヒラノ", "ジュン"},
+	{"菊地", "純一", "キクチ", "ジュンイチ"},
+	{"西村", "純也", "ニシムラ", "ジュンヤ"},
+	{"岡本", "淳也", "オカモト", "ジュンヤ"},
+	{"長谷川", "准", "ハセガワ", "ジュン"},
+	{"松井", "勇人", "マツイ", "ユウト"},
+	{"五十嵐", "健人", "イガラシ", "ケント"},
+	{"藤本", "裕也", "フジモト", "ユウヤ"},
+	{"松尾", "貴志", "マツオ", "タカシ"},
+	{"新井", "紀", "アライ", "ノリ"},
+	{"福田", "公二", "フクダ", "コウジ"},
+	{"野村", "誠", "ノムラ", "マコト"},
+	{"北村", "隆", "キタムラ", "タカシ"},
+	{"大沢", "修", "オオサワ", "オサム"},
+	{"安田", "学", "ヤスダ", "マナブ"},
+	{"川口", "康弘", "カワグチ", "ヤスヒロ"},
+	{"西田", "修一", "ニシダ", "シュウイチ"},
+	{"土屋", "照明", "ツチヤ", "ショウメイ"},
+	{"石川", "秀一", "イシカワ", "シュウイチ"},
+	{"中川", "貴之", "ナカガワ", "タカユキ"},
+	{"小川", "隆行", "オガワ", "タカユキ"},
+	{"田口", "昌彦", "タグチ", "マサヒコ"},
+	{"石黒", "明大", "イシグロ", "アキヒロ"},
+	{"村田", "大作", "ムラタ", "ダイサク"},
+	{"森田", "昌弘", "モリタ", "マサヒロ"},
+	{"岩崎", "洋介", "イワサキ", "ヨウスケ"},
+	{"大野", "智春", "オオノ", "トモハル"},
+	{"市川", "真司", "イチカワ", "シンジ"},
+	{"望月", "知宏", "モチヅキ", "トモヒロ"},
+	{"和田", "彰男", "ワダ", "アキオ"},
+	{"野口", "久", "ノグチ", "ヒサシ"},
+	{"阪口", "寛", "サカグチ", "ヒロシ"},
+	{"堀", "晃", "ホリ", "アキラ"},
+	{"松原", "秀行", "マツバラ", "ヒデユキ"},
+	{"片山", "裕", "カタヤマ", "ユタカ"},
+	{"大石", "拓也", "オオイシ", "タクヤ"},
+	{"宮崎", "英樹", "ミヤザキ", "ヒデキ"},
+	{"有馬", "輝明", "アリマ", "テルアキ"},
+	{"武田", "真治", "タケダ", "シンジ"},
+	{"吉野", "仁志", "ヨシノ", "ヒトシ"},
+	{"野崎", "洋平", "ノザキ", "ヨウヘイ"},
+	{"井口", "昭彦", "イノグチ", "アキヒコ"},
+	{"岡", "孝行", "オカ", "タカユキ"},
+	{"河村", "裕也", "カワムラ", "ユウヤ"},
+	{"柳沢", "勝", "ヤナギサワ", "マサル"},
+	{"水野", "博司", "ミズノ", "ヒロシ"},
+	{"白石", "智也", "シライシ", "トモヤ"},
+	{"松山", "秀樹", "マツヤマ", "ヒデキ"},
+	{"星野", "仁美", "ホシノ", "ヒトミ"},
+	{"宮本", "花子", "ミヤモト", "ハナコ"},
+	{"酒井", "友美", "サカイ", "トモミ"},
+	{"高田", "純子", "タカダ", "ジュンコ"},
+	{"福岡", "裕子", "フクオカ", "ユウコ"},
+	{"安藤", "菜々子", "アンドウ", "ナナコ"},
+	{"堤", "真理子", "ツツミ", "マリコ"},
+	{"中野", "早苗", "ナカノ", "サナエ"},
+	{"原", "愛子", "ハラ", "アイコ"},
+	{"浅野", "香織", "アサノ", "カオリ"},
+	{"草野", "桃子", "クサノ", "モモコ"},
+	{"南", "千晴", "ミナミ", "チハル"},
+	{"北原", "芽衣", "キタハラ", "メイ"},
+	{"東", "由美子", "ヒガシ", "ユミコ"},
+	{"西尾", "紗英", "ニシオ", "サエ"},
+	{"有村", "結菜", "アリムラ", "ユウナ"},
+	{"香取", "聖子", "カトリ", "セイコ"},
+	{"上野", "梨絵", "ウエノ", "リエ"},
+	{"吉岡", "理恵", "ヨシオカ", "リエ"},
+	{"橘", "華子", "タチバナ", "ハナコ"},
+	{"柏木", "詩織", "カシワギ", "シオリ"},
+	{"萩原", "愛美", "ハギワラ", "マナミ"},
+	{"高島", "美咲", "タカシマ", "ミサキ"},
+	{"菊池", "結子", "キクチ", "ユウコ"},
+	{"竹内", "明日香", "タケウチ", "アスカ"},
+	{"町田", "純奈", "マチダ", "ジュンナ"},
+	{"中村", "桃香", "ナカムラ", "モモカ"},
+}
+
+func randomNamePair() (string, string, string, string) {
+	pair := namePairs[rand.Intn(len(namePairs))]
+	return pair.LastName, pair.FirstName, pair.KanaLastName, pair.KanaFirstName
+}
+
+func main() {
+	ev, _ := env.NewValue()
+
+	zapLogger, _ := logger.NewLogger(true)
+	defer func() { _ = zapLogger.Sync() }()
+
+	dbClient, err := db.NewClient(&ev.DB, zapLogger)
+	if err != nil {
+		zapLogger.Error(err.Error())
+	}
+
+	gofakeit.Seed(time.Now().UnixNano())
+
+	var branches entity.ListBranches
+	err = dbClient.Conn(context.Background()).Find(&branches).Error
+	if err != nil {
+		panic(err)
+	}
+	var appointments []Appointment // Change the way you create the slice.
+
+	for _, branch := range branches {
+		for i := 0; i < 50; i++ {
+			startDateTime := time.Now().Add(time.Duration(rand.Intn(30)) * 24 * time.Hour)
+			kanjiLastName, kanjiFirstName, kanaLastName, kanaFirstName := randomNamePair()
+
+			appointment := Appointment{
+				BankID:         "0158",
+				BranchID:       branch.ID,
+				StartDateTime:  startDateTime,
+				EndDateTime:    startDateTime.Add(30 * time.Minute),
+				KanjiLastName:  kanjiLastName,
+				KanjiFirstName: kanjiFirstName,
+				KanaLastName:   kanaLastName,
+				KanaFirstName:  kanaFirstName,
+				CompanyName:    gofakeit.Company(),
+				Email:          gofakeit.Email(),
+				Tel:            gofakeit.Phone(),
+				Note:           gofakeit.Sentence(5),
+				MenuID:         rand.Intn(10) + 1,
+				Birthdate:      gofakeit.Date(),
+				CreatedBy:      "admin",
+				UpdatedBy:      "admin",
+			}
+
+			appointments = append(appointments, appointment) // Add each appointment to the slice.
+		}
+	}
+
+	dbClient.Conn(context.Background()).Exec("TRUNCATE appointments RESTART IDENTITY CASCADE")
+	if err := dbClient.Conn(context.Background()).Create(&appointments).Error; err != nil {
+		fmt.Println(err)
+	}
+}
